@@ -1,0 +1,59 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: zahnflow-db-prod
+    restart: always
+    environment:
+      POSTGRES_USER: zahnflow
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: zahnflow
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - zahnflow-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zahnflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.backend
+    container_name: zahnflow-backend
+    restart: always
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://zahnflow:${DB_PASSWORD}@postgres:5432/zahnflow
+      JWT_SECRET: ${JWT_SECRET}
+      PORT: 3001
+    ports:
+      - "3002:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - zahnflow-network
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.frontend
+      args:
+        VITE_API_URL: /api
+    container_name: zahnflow-frontend
+    restart: always
+    ports:
+      - "5174:80"
+    depends_on:
+      - backend
+    networks:
+      - zahnflow-network
+
+networks:
+  zahnflow-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
